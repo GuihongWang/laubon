@@ -3,32 +3,76 @@ jb.marisa.ml — Carbon 离线包(中文版)
 
 中文界面 + 进度显示, 不安装证书。域名改写为 jb.marisa.ml。
 
-二进制用的是 carbon.sep.lol **原版**(提交 8a7b36d), 不是中文站那版。原因:
-  1. host 槽位 14 字节, 放得下 12 字符的 jb.marisa.ml(中文站那版只有 11 字节)
-  2. 原版比中文站那版新 4 个提交 —— zebra 源、uicache 修复、
-     need_to_strap 检查 4 个路径
-中文界面只在 index.html 里, 与二进制无关, 所以两者可以自由组合。
+目录里有两个变体, 页面顶部有徽章标明当前是哪个, 互跳链接在按钮下方:
+
+  /            原版 carbon.sep.lol 系 (8a7b36d)
+  /cn/         修改版 jb.aptso.co 系 (93a641d)
+
+中文界面只在 index.html 里, 与二进制无关, 所以两个二进制可以自由组合。
+
+两个变体的差别
+--------------
+                       原版(根目录)        修改版(/cn/)
+  提交                   8a7b36d             93a641d (落后 4 个)
+  二进制                 106696 B            106660 B
+  bootstrap 检查路径      4 条                 1 条
+  zebra 源 / uicache 修复 有                   无
+
+原版检查的 4 条路径, 命中任意一条就跳过 21 MB 下载:
+  /Applications/Cydia.app/Cydia
+  /private/var/lib/dpkg/status
+  /usr/share/terminfo/x/xterm-xi
+  /usr/libexec/bigram
+
+修改版只检查 /private/var/lib/dpkg/status, 所以每次都会重新下载完整的
+Cydia bootstrap, 即使设备已经越狱过。
+
+为什么 bootstrap 放在根目录而不是 /cn/ 下
+------------------------------------------
+载荷按绝对路径取 bootstrap, 形如 http://<host>:80/Cydata, 前缀写死在
+cstring 里。最长的那条 /com.lukezgd.everuntether-migrator.deb 占 38 字符、
+槽位 39 字节, 加上 /cn 需要 42 字节 —— 塞不进去, 改写不了。
+
+但两个变体的 7 个 bootstrap 文件逐字节相同(已用 SHA256 核对), 所以放在
+根目录共用即可:
+
+  页面用相对 URL 取载荷   wkloader.js 里写的是 "jber.png"
+                          在 /cn/ 下自然解析成 /cn/jber.png
+  载荷用绝对路径取 bootstrap  http://<host>:80/Cydia  ->  命中根目录共用文件
+
+两条路径互不干扰, 实测请求记录:
+
+  /  ->  /  /wkloader.js  /jber.png  /loader8.png  /loader9.png  /patch.png
+  /cn/ -> /cn/  /cn/wkloader.js  /cn/jber.png  /cn/loader8.png
+                 /cn/loader9.png  /cn/patch.png
+
+host 槽位
+---------
+两版的 host 可用区实测都是 15 字节(最大域名 14 字符)。__cstring 里 host 和
+端口串 "80" 之间有对齐填充, 所以 "80" 在 host 起点 +15 而不是紧挨着。
+
+  原版    host @ 0x12f7c   端口串 @ 0x12f8b
+  修改版  host @ 0x13003   端口串 @ 0x13012
+
+早期文档写"修改版槽位只有 11 字节, 放不下 jb.marisa.ml", 那��是把域名长度
+当成了槽位长度。patch-host.ps1 现在现测, 不再查表。
 
 目录内容
 --------
-浏览器阶段
-  index.html            中文入口页, 含四步进度条和详细日志面板
+浏览器阶段(每个变体各一份)
+  index.html            中文入口页, 四步进度条 + 详细日志面板
   wkloader.js           注入 prefetch 逻辑: 异步下载 PNG 载体 + 真实进度
-  loader8.png loader9.png patch.png jber.png   载荷(PNG 载体)
   wkloader.orig.js      原始 wkloader.js, 供对照
+  loader8.png loader9.png patch.png jber.png   载荷(PNG 载体)
 
-载荷阶段
+载荷阶段(根目录, 两个变体共用)
   everuntether-jsc.tar               454 KB
   everuntether-bin.deb                 19 KB
   com.lukezgd.everuntether-migrator.deb 19 KB
   Cydia / tar / launchctl / truststore 约 21 MB
 
-  后四个只有 bootstrap 缺失时才用到。设备上这四个路径都在就不会下载,
-  可以删掉省空间:
-    /Applications/Cydia.app/Cydia
-    /private/var/lib/dpkg/status
-    /usr/share/terminfo/x/xterm-xi
-    /usr/libexec/bigram
+  后四个只有 bootstrap 缺失时才用到。上面 4 条路径都在就不会下载,
+  可以删掉省空间。
 
 进度显示的边界(重要)
 --------------------
@@ -43,9 +87,6 @@ jb.marisa.ml — Carbon 离线包(中文版)
 
   要看实时越狱进度, 另开终端连 SSH 后执行:
       log stream --style compact --predicate 'eventMessage CONTAINS "[*]"'
-
-  会看到类似 [*] downloading bootstrap / [*] strapping / [*] running uicache
-  这些是载荷自己的日志。
 
   利用阶段也加不了超时看门狗: 定时器在同步 JS 执行期间不触发, 而漏洞利用
   必须留在主线程(它操纵页面自身的堆对象), 无法搬到 Web Worker。

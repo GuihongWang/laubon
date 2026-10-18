@@ -18,6 +18,32 @@
         .about { margin-bottom: 26px; }
         .wrapper { margin-bottom: 22px; }
 
+        .badge {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 5px 14px;
+            border-radius: 999px;
+            background: #007AFF;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .altlink {
+            font-size: 14px;
+            margin: -8px 0 26px;
+        }
+        .altlink a { color: #007AFF; text-decoration: none; }
+        .altlink a:active { text-decoration: underline; }
+
+        .note-inline {
+            font-size: 12px;
+            color: #8e8e93;
+            max-width: 460px;
+            margin: 12px auto 0;
+            line-height: 1.6;
+        }
+
         .button {
             background-color: #007AFF;
             border: none;
@@ -134,11 +160,15 @@
         <h6>@mineekdev &amp; @staturnzdev</h6>
         <h3>支持 iOS 8.0-9.3.6, 32 位设备</h3>
         <h6>离线部署版 · 不安装证书</h6>
+        <div class="badge" id="badge">当前版本：原版 carbon.sep.lol 系（8a7b36d）</div>
+        <div class="note-inline">bootstrap 命中 4 条路径中任意一条即跳过 21 MB 下载；含 zebra 源与 uicache 修复。</div>
     </div>
 
     <div class="wrapper">
         <button class="button" id="go">越狱</button>
     </div>
+
+    <div class="altlink" id="altlink"><a href="/cn/">→ 切换到修改版 jb.aptso.co 系（93a641d）</a></div>
 
     <div class="panel" id="panel">
         <div class="track"><div class="fill" id="fill"></div></div>

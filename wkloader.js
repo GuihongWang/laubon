@@ -74,7 +74,9 @@ wkloader.download = function(path) {
 
 wkloader.cache = {};
 
-/* 鎶?wkloader.log 鐨勮緭鍑轰篃鎺ュ埌椤甸潰涓娿€?   鍘熷疄鐜板彧 console.log, 椤甸潰涓婁粈涔堥兘鐪嬩笉鍒?鈥斺€?鑰岃皟璇曟紡娲炲埄鐢ㄦ渶鍏抽敭鐨勫嚑鏉?   (struct_addr / js_func_addr / shellcode / 璇诲啓鑷缁撴灉) 鍏ㄥ湪閭ｉ噷銆?*/
+/* 把 wkloader.log 的输出也接到页面上。
+   原实现只 console.log, 页面上什么都看不到 —— 而调试漏洞利用最关键的几条
+   (struct_addr / js_func_addr / shellcode / 读写自检结果) 全在那里。 */
 if (!wkloader._logHooked && wkloader.log) {
   wkloader._logHooked = true;
   var _origLog = wkloader.log;
