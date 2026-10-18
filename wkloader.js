@@ -55,26 +55,43 @@ wkloader.download = function(path) {
     return new Uint32Array(bytes.buffer);
 }
 
-/* ---- offline build: payloads are carried inside PNG files ----
-   Layout: <PNG bytes><IEND chunk><base64 payload>
-   The PNG still renders normally in any viewer; the JS reads the bytes
-   after the IEND chunk.                                        */
+/* ---- offline build: PNG-carrier loading with progress ----
+ *
+ * Layout:  <PNG bytes><IEND chunk><base64 payload>
+ * The PNG still renders normally in any viewer; we read the bytes
+ * after the IEND chunk.  Payload is base64 (ASCII), so it survives
+ * the x-user-defined byte->char mapping unchanged.
+ *
+ * Two entry points:
+ *   wkloader.prefetchPng(path, onProgress, onDone)  async, caches result
+ *   wkloader.downloadPng(path)                        sync, cache-aware
+ *
+ * The page prefetches everything with async XHR first (so it can
+ * paint a real progress bar), then calls wkloader.init(), whose
+ * internal downloadPng calls all hit the cache and never block on
+ * the network.
+ */
+
+wkloader.cache = {};
+
+/* 鎶?wkloader.log 鐨勮緭鍑轰篃鎺ュ埌椤甸潰涓娿€?   鍘熷疄鐜板彧 console.log, 椤甸潰涓婁粈涔堥兘鐪嬩笉鍒?鈥斺€?鑰岃皟璇曟紡娲炲埄鐢ㄦ渶鍏抽敭鐨勫嚑鏉?   (struct_addr / js_func_addr / shellcode / 璇诲啓鑷缁撴灉) 鍏ㄥ湪閭ｉ噷銆?*/
+if (!wkloader._logHooked && wkloader.log) {
+  wkloader._logHooked = true;
+  var _origLog = wkloader.log;
+  wkloader.log = function (message) {
+    _origLog(message);
+    if (wkloader.onlog) { try { wkloader.onlog(message); } catch (e) {} }
+  };
+}
 
 wkloader._byte = function(s, i) { return s.charCodeAt(i) & 0xFF; };
 
-wkloader.downloadPng = function(path) {
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", path+"?cache="  + new Date().getTime(), false);
-    // read the file as raw bytes; every byte lands in charCode & 0xFF
-    try { xhttp.overrideMimeType("text/plain; charset=x-user-defined"); } catch (e) {}
-    xhttp.send();
-
-    var raw = xhttp.responseText;
+wkloader._extractPng = function(raw) {
     var b = wkloader._byte;
 
-    // PNG signature: 89 'P' 'N' 'G'  (only check the ASCII part, 0x89 is not ASCII-safe)
-    if (b(raw,1) != 0x50 || b(raw,2) != 0x4E || b(raw,3) != 0x47) {
-        throw new Error("not a PNG: " + path);
+    // PNG signature: 89 'P' 'N' 'G'  (0x89 is not ASCII-safe, skip it)
+    if (raw.length < 8 || b(raw,1) != 0x50 || b(raw,2) != 0x4E || b(raw,3) != 0x47) {
+        throw new Error("not a PNG");
     }
 
     // walk chunks until IEND
@@ -85,18 +102,59 @@ wkloader.downloadPng = function(path) {
         p += 12 + len;
         if (type == "IEND") break;
     }
-    if (p > raw.length) throw new Error("IEND not found in " + path);
+    if (p > raw.length) throw new Error("IEND not found");
 
-    // everything after IEND is the base64 payload (pure ASCII, safe to slice directly)
     var payload = atob(raw.substr(p));
-    var plen = Math.floor((payload.length + 4)/4) * 4;
+    var plen = Math.floor((payload.length + 4) / 4) * 4;
     var bytes = new Uint8Array(plen);
     for (var i = 0; i < payload.length; i++) {
-        bytes[i] = payload.charCodeAt(i) & 0xff;
+        bytes[i] = payload.charCodeAt(i) & 0xFF;
     }
     return new Uint32Array(bytes.buffer);
-}
-/* ---- end offline build ---- */wkloader.f64_to_u32 = function(value) {
+};
+
+wkloader.prefetchPng = function(path, onProgress, onDone) {
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("GET", path + "?cache=" + new Date().getTime(), true);
+    try { xhttp.overrideMimeType("text/plain; charset=x-user-defined"); } catch (e) {}
+
+    xhttp.onprogress = function (e) {
+        if (onProgress && e.lengthComputable) onProgress(e.loaded, e.total);
+    };
+
+    xhttp.onreadystatechange = function () {
+        if (xhttp.readyState !== 4) return;
+        // status 0 happens for file:// and some cached responses; treat as OK
+        if (xhttp.status !== 200 && xhttp.status !== 0) {
+            if (onDone) onDone(false, "HTTP " + xhttp.status);
+            return;
+        }
+        try {
+            wkloader.cache[path] = wkloader._extractPng(xhttp.responseText);
+            if (onDone) onDone(true, null);
+        } catch (err) {
+            if (onDone) onDone(false, String(err));
+        }
+    };
+
+    try { xhttp.send(); }
+    catch (err) { if (onDone) onDone(false, String(err)); }
+};
+
+wkloader.downloadPng = function(path) {
+    if (wkloader.cache[path]) return wkloader.cache[path];
+
+    // fallback: synchronous fetch (no progress UI available)
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("GET", path + "?cache=" + new Date().getTime(), false);
+    try { xhttp.overrideMimeType("text/plain; charset=x-user-defined"); } catch (e) {}
+    xhttp.send();
+    var v = wkloader._extractPng(xhttp.responseText);
+    wkloader.cache[path] = v;
+    return v;
+};
+/* ---- end offline build ---- */
+wkloader.f64_to_u32 = function(value) {
     wkloader.f64_array[0] = value;
     return [wkloader.u32_array[0], wkloader.u32_array[1]];
 }
