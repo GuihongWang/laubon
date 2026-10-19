@@ -15,6 +15,7 @@ jb.marisa.ml — Carbon 离线包(中文版)
                        原版(根目录)        修改版(/cn/)
   提交                   8a7b36d             93a641d (落后 4 个)
   二进制                 106696 B            106660 B
+  bootstrap 判定          4 个路径 stat()      dpkg/status 里找 Package: base
   bootstrap 检查路径      4 条                 1 条
   zebra 源 / uicache 修复 有                   无
 
@@ -26,6 +27,20 @@ jb.marisa.ml — Carbon 离线包(中文版)
 
 修改版只检查 /private/var/lib/dpkg/status, 所以每次都会重新下载完整的
 Cydia bootstrap, 即使设备已经越狱过。
+
+**根目录的 jber 打过补丁**
+
+原版判断 bootstrap 是否可用只看 4 个文件在不在 (stat)。如果文件都在但
+dpkg 数据库是空的或坏的, 原版会认为 bootstrap 完好 -> 整个跳过 strap ->
+越狱失败。修改版则是 fopen(dpkg/status) 逐行找 "Package: base", 找不到就
+判定数据库坏了 -> 执行 strap -> 成功。
+
+根目录的 jber 把 0xc728 改成永远返回 1, 让原版和修改版行为一致:
+  - 不再走 "skipping bootstrap strap" 早退
+  - 4 个文件都在 -> 复用现有 bootstrap 文件, 不重新下 21 MB
+  - 真正执行 "[*] strapping"
+
+只改了 4 个字节, Mach-O 长度与 magic 不变。
 
 为什么 bootstrap 放在根目录而不是 /cn/ 下
 ------------------------------------------
