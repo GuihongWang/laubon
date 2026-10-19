@@ -269,8 +269,12 @@ wkloader.init = function() {
      * Caps are generous: anything that would have succeeded still succeeds. */
     var __spray = 0, __sprayOk = false;
     var __sprayT0 = (new Date()).getTime();
-    var __sprayBudgetMs = 240000;
-    var __sprayRoundCap = 2000;
+    /* 预算要够 iOS 9.3+ 跑完。9.3+ 每轮 oob_write_count = 200000 (iOS 8 是
+       8000, 9.0-9.2 是 40000), 在 iPad 2 这类老设备上每轮要 1 秒以上, 喷到
+       高地址常常需要几百轮。之前设的 4 分钟 / 2000 轮会把还在正常推进的
+       运行误判成失败 —— 放宽到 15 分钟 / 3000 轮, 轮数在日志里可见。 */
+    var __sprayBudgetMs = 900000;
+    var __sprayRoundCap = 3000;
     while (__spray < __sprayRoundCap) {
         __spray++;
         if ((__spray & 15) === 0) {

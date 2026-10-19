@@ -254,6 +254,10 @@
                 if (/failed|error|失败/i.test(msg)) cls = 'er';
                 else if (/0x[0-9a-f]{8}|addr|struct|shellcode|mach|m_executable/i.test(msg)) cls = 'hi';
                 log(msg, cls);
+
+                // 喷洒轮数直接显示在第二步上 —— 这是"在推进"还是"卡住"的唯一依据
+                var m = /spray (\d+) rounds, (\d+)s/.exec(msg);
+                if (m) { $('d2').textContent = m[1] + ' 轮 / ' + m[2] + 's'; }
             };
 
             $('loghead').addEventListener('click', function () {
@@ -321,9 +325,11 @@
                     log('下载完成, 合计 ' + (dl / 1000).toFixed(1) + 's', 'ok');
 
                     mark(2, 'doing');
-                    indet(true, '利用中', '通常 10-60 秒');
-                    note('正在利用 WebKit 漏洞 —— 同步执行, 界面暂时无响应是正常的。<br>' +
-                         '详细日志会在这里实时出现(struct_addr / shellcode / 读写自检)。');
+                    indet(true, '利用中', 'iOS 9.3+ 每轮 20 万次写, 可能数分钟');
+                    note('正在利用 WebKit 漏洞 —— 同步执行, 界面暂时无响应是正常的, 请勿切走或锁屏。<br>' +
+                         '第二步右侧会显示<b>喷洒轮数</b>: 轮数持续增长 = 正在推进(不是卡住)。' +
+                         'iOS 8 约 10-60 秒, iOS 9.3+ 每轮 20 万次越界写, 可能要好几分钟。<br>' +
+                         '详细日志里能看到 struct_addr / shellcode / 读写自检。');
                     return new Promise(function (r) { setTimeout(r, 80); });
 
                 }).then(function () {
